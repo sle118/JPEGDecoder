@@ -5,7 +5,14 @@
  Public domain, Makoto Kurauchi <http://yushakobo.jp>
 */
 
+//for ESP8266 SPIFFS support uncomment this
+#define SPIFS
+
+#if defined(SPIFS)
+#include <FS.h>
+#else
 #include <SD.h>
+#endif
 #include "JPEGDecoder.h"
 #include "picojpeg.h"
 
@@ -52,8 +59,12 @@ unsigned char JPEGDecoder::pjpeg_need_bytes_callback(unsigned char* pBuf, unsign
 int JPEGDecoder::decode(char* pFilename, unsigned char pReduce){
     
     if(pReduce) reduce = pReduce;
-    
-    g_pInFile = SD.open(pFilename, FILE_READ);
+
+#if defined(SPIFS)
+    g_pInFile = SPIFFS.open(pFilename, "r");    //valid entry for file is "/somefile.txt" with slash https://github.com/esp8266/Arduino/blob/master/doc/reference.md#open
+#else    
+    g_pInFile = SD.open(pFilename, FILE_READ);  //valid entry for file is "somefile.txt"
+#endif    
     if (!g_pInFile)
         return -1;
 
