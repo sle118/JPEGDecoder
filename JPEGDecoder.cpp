@@ -6,7 +6,7 @@
 */
 
 //for ESP8266 SPIFFS support uncomment this
-#define SPIFS
+//#define SPIFS
 
 #if defined(SPIFS)
 #include <FS.h>
@@ -175,7 +175,7 @@ int JPEGDecoder::read(void)
         }
         else
         {
-            uint y, x;
+            //uint y, x;
             for (y = 0; y < col_blocks_per_mcu; y++)
             {
                 uint src_ofs = (y * 128U);
@@ -265,9 +265,18 @@ int JPEGDecoder::read(void)
         mcu_y++;
     }
 
+    if (mcu_y == image_info.m_MCUSPerCol)
+    {
+        mcu_y = 0;
+    }    
+
     if(decode_mcu()==-1) is_available = 0 ;
 
     return 1;
+}
+
+int JPEGDecoder::available(void) {
+  return (is_available);
 }
 
 
