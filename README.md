@@ -1,7 +1,9 @@
 JPEGDecoder
 ===========
 
-JPEG Decoder for Arduino
+JPEG Decoder for Arduino - with added support for sming framework https://github.com/SmingHub/Sming/
+
+Based on [picojpeg](https://github.com/richgel999/picojpeg), which had jpg2tga wrapped into a loader class by MakotoKurauchi and later adapted to the arduino by reaper7.  
 
 概要
 ----
