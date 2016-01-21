@@ -1,8 +1,11 @@
 //------------------------------------------------------------------------------
 // picojpeg - Public domain, Rich Geldreich <richgel99@gmail.com>
 //------------------------------------------------------------------------------
+
 #ifndef PICOJPEG_H
 #define PICOJPEG_H
+
+
 
 #ifdef __cplusplus
 extern "C" {
@@ -116,6 +119,8 @@ typedef unsigned char (*pjpeg_need_bytes_callback_t)(unsigned char* pBuf, unsign
 // If reduce is 1, only the first pixel of each block will be decoded. This mode is much faster because it skips the AC dequantization, IDCT and chroma upsampling of every image pixel.
 // Not thread safe.
 unsigned char pjpeg_decode_init(pjpeg_image_info_t *pInfo, pjpeg_need_bytes_callback_t pNeed_bytes_callback, void *pCallback_data, unsigned char reduce);
+
+
 
 // Decompresses the file's next MCU. Returns 0 on success, PJPG_NO_MORE_BLOCKS if no more blocks are available, or an error code.
 // Must be called a total of m_MCUSPerRow*m_MCUSPerCol times to completely decompress the image.

@@ -4,39 +4,161 @@
  JPEG Decoder for Arduino
  Public domain, Makoto Kurauchi <http://yushakobo.jp>
 */
+/********************************
+ * ported to ESP8266 by reaper7
+ * https://github.com/reaper7/JPEGDecoder
+ *
+ * ported for Sming by sle118.
+ * https://github.com/sle118
+ ********************************/
 
-//for ESP8266 SPIFFS support uncomment this
-//#define SPIFS
 
-#if defined(SPIFS)
-#include <FS.h>
-#else
-#include <SD.h>
-#endif
 #include "JPEGDecoder.h"
 #include "picojpeg.h"
 
+// The declaration below is mandatory; the current implementation of picojpeg uses global static variables to store
+// callbacks, so we can only instantiate a single instance of the decoder at a time.
 
 JPEGDecoder JpegDec;
 
 JPEGDecoder::JPEGDecoder(){
-    mcu_x = 0 ;
-    mcu_y = 0 ;
-    is_available = 0;
-    reduce = 0;
-    thisPtr = this;
+	init(&JPEGDecoder::dummyBeginFunc,&JPEGDecoder::dummyEndFunc, &JPEGDecoder::dummyDrawFunc,&JPEGDecoder::dummyDrawRGBFunc);
+}
+void JPEGDecoder::init(void (*drawPixelFunc)(int x, int y, int color)){
+	init(&JPEGDecoder::dummyBeginFunc, &JPEGDecoder::dummyEndFunc,drawPixelFunc,&JPEGDecoder::dummyDrawRGBFunc);
+}
+void JPEGDecoder::init(void (*drawRGBPixelFunc)(int x, int y, int red, int green, int blue)){
+	init(&JPEGDecoder::dummyBeginFunc, &JPEGDecoder::dummyEndFunc,&JPEGDecoder::dummyDrawFunc, drawRGBPixelFunc);
 }
 
+void JPEGDecoder::init(void (*beginFunc)(), void (*endFunc)(),void (*drawPixelFunc)(int x, int y, int color),void (*drawRGBPixelFunc)(int x, int y, int red, int green, int blue)){
+	mcu_x = 0 ;
+	mcu_y = 0 ;
+	is_available = 0;
+	reduce = 0;
+	thisPtr = this;
+	this->_drawPixel = drawPixelFunc;
+	this->_drawRGBPixel = drawRGBPixelFunc;
+	this->_beginFunc = beginFunc;
+	this->_endFunc = beginFunc;
+}
+void JPEGDecoder::setReduce(bool bReduce){
+	this->reduce = bReduce?1:0;
+}
+void JPEGDecoder::setBeginCallback(void (*beginFunc)()){
+	this->_beginFunc = beginFunc;
+}
+
+void JPEGDecoder::setEndCalback(void (*endFunc)()){
+	this->_endFunc = endFunc;
+}
 
 JPEGDecoder::~JPEGDecoder(){
-    delete pImage;
+	delete pImage;
 }
+bool JPEGDecoder::display(String pFilename, int xPos, int yPos){
+	return display(pFilename,xPos,yPos,-1,-1);
+}
+bool JPEGDecoder::display(String pFilename, int xPos, int yPos, int xSize, int ySize){
+	uint8 *pImg;
+	int x, y, bx, by;
+	int val, valmax;
+	Serial.println(String("displaying file "+pFilename));
+char str[200];
+	// Decoding start
+	if (decode((char *)pFilename.c_str(), 0) < 0) {
+		return false;
+		Serial.println(String("Could not open file "+pFilename));
+	}
+	// Image Information
+	  Serial.println(String("Showing "+pFilename));
+	  Serial.print("Width     :"); Serial.println(width);
+	  Serial.print("Height    :"); Serial.println(height);
+	  Serial.print("Components:"); Serial.println(comps);
+	  Serial.print("MCU / row :"); Serial.println(MCUSPerRow);
+	  Serial.print("MCU / col :"); Serial.println(MCUSPerCol);
+	  Serial.print("Scan type :"); Serial.println(scanType);
+	  Serial.print("MCU width :"); Serial.println(MCUWidth);
+	  Serial.print("MCU height:"); Serial.println(MCUHeight);
+	  Serial.println("");
+	_beginFunc();
 
+	while (read()) {
+		pImg = pImage;
+
+		for (by = 0; by < MCUHeight; by++) {
+			for (bx = 0; bx < MCUWidth; bx++) {
+				x = MCUx * MCUWidth + bx;
+				y = MCUy * MCUHeight + by;
+
+				if (x < width && y < height) {
+
+					if (comps == 1) {               // Grayscale
+
+						_drawPixel(xPos+x, yPos+y,pImg[0]);
+						// todo: convert GrayScale to a proper color space value
+						_drawRGBPixel(xPos+x, yPos+y,pImg[0],pImg[0],pImg[0]);
+
+
+					} else {                                    // RGB
+
+
+
+						// Convert RGB to Gray Scale
+						val = 0.299 * pImg[0] + 0.587 * pImg[1]
+								+ 0.114 * pImg[2];
+						_drawPixel(xPos+x, yPos+y, val );
+						_drawRGBPixel(xPos+x, yPos+y, pImg[0], pImg[1], pImg[2] );
+//
+//
+//						if (val > valmax) {
+//							valmax = val;
+//						}
+//						val = val / 55;
+//						if (x % 4 == 0) {
+//							switch (val) {
+//							case 3:
+//								_drawPixel(3 * x / 4, y / 2, 0);
+//								_drawPixel(3 * x / 4 + 1, y / 2, 0);
+//								_drawPixel(3 * x / 4 + 2, y / 2, 0);
+//								break;
+//							case 2:
+//								_drawPixel(3 * x / 4, y / 2, 0);
+//								_drawPixel(3 * x / 4 + 1, y / 2, 1);
+//								_drawPixel(3 * x / 4 + 2, y / 2, 0);
+//								break;
+//							case 1:
+//								_drawPixel(3 * x / 4, y / 2, 1);
+//								_drawPixel(3 * x / 4 + 1, y / 2, 0);
+//								_drawPixel(3 * x / 4 + 2, y / 2, 1);
+//								break;
+//							case 0:
+//								_drawPixel(3 * x / 4, y / 2, 1);
+//								_drawPixel(3 * x / 4 + 1, y / 2, 1);
+//								_drawPixel(3 * x / 4 + 2, y / 2, 1);
+//								break;
+//							default:
+//								_drawPixel(3 * x / 4, y / 2, 1);
+//								_drawPixel(3 * x / 4 + 1, y / 2, 1);
+//								_drawPixel(3 * x / 4 + 2, y / 2, 1);
+//								break;
+//							}
+//						}
+						//pic[x/2][y/2]=val;
+
+					}
+				}
+
+				pImg += comps;
+			}
+		}
+	}
+//	  Serial.println("Displaying");
+}
 
 unsigned char JPEGDecoder::pjpeg_callback(unsigned char* pBuf, unsigned char buf_size, unsigned char *pBytes_actually_read, void *pCallback_data)
 {
-    JPEGDecoder *thisPtr = JpegDec.thisPtr ;
-    thisPtr->pjpeg_need_bytes_callback(pBuf, buf_size, pBytes_actually_read, pCallback_data);
+    JpegDec.pjpeg_need_bytes_callback(pBuf, buf_size, pBytes_actually_read, pCallback_data);
 }
 
 
@@ -44,11 +166,13 @@ unsigned char JPEGDecoder::pjpeg_need_bytes_callback(unsigned char* pBuf, unsign
 {
     uint n;
 
-    pCallback_data;
-    
     n = min(g_nInFileSize - g_nInFileOfs, buf_size);
 
+#ifdef SMING_VERSION
+    n = fileRead(g_pInFile,pBuf,n);
+#else
     g_pInFile.read(pBuf,n);
+#endif
 
     *pBytes_actually_read = (unsigned char)(n);
     g_nInFileOfs += n;
@@ -59,20 +183,39 @@ unsigned char JPEGDecoder::pjpeg_need_bytes_callback(unsigned char* pBuf, unsign
 int JPEGDecoder::decode(char* pFilename, unsigned char pReduce){
     
     if(pReduce) reduce = pReduce;
+#ifdef SMING_VERSION
+    g_pInFile =  fileOpen(pFilename, eFO_ReadOnly);
+    if (!g_pInFile)
+    {
+    	Serial.print("Unable to open file. Error: ");
+    	Serial.println(fileLastError(g_pInFile));
+		Vector<String> list = fileList();
+		Serial.println("File List:");
+		for (int i = 0; i < list.count(); i++)
+			Serial.println(String(fileGetSize(list[i])) + " " + list[i] + "\r\n");
+
+        return -1;
+    }
+
+#else
 
 #if defined(SPIFS)
     g_pInFile = SPIFFS.open(pFilename, "r");    //valid entry for file is "/somefile.txt" with slash https://github.com/esp8266/Arduino/blob/master/doc/reference.md#open
 #else    
     g_pInFile = SD.open(pFilename, FILE_READ);  //valid entry for file is "somefile.txt"
-#endif    
+#endif
     if (!g_pInFile)
         return -1;
+#endif
 
     g_nInFileOfs = 0;
-
+#ifdef SMING_VERSION
+    g_nInFileSize =  fileGetSize(pFilename);
+#else
     g_nInFileSize = g_pInFile.size();
-        
-    status = pjpeg_decode_init(&image_info, pjpeg_callback, NULL, (unsigned char)reduce);
+#endif
+
+    status = pjpeg_decode_init(&image_info, JPEGDecoder::pjpeg_callback, NULL, (unsigned char)reduce);
             
     if (status)
     {
@@ -86,7 +229,11 @@ int JPEGDecoder::decode(char* pFilename, unsigned char pReduce){
         }
         #endif
         
+#ifdef SMING_VERSION
+        fileClose(g_pInFile);
+#else
         g_pInFile.close();
+#endif
         return -1;
     }
     
@@ -99,7 +246,12 @@ int JPEGDecoder::decode(char* pFilename, unsigned char pReduce){
     pImage = new uint8[image_info.m_MCUWidth * image_info.m_MCUHeight * image_info.m_comps];
     if (!pImage)
     {
+#ifdef SMING_VERSION
+        fileClose(g_pInFile);
+#else
         g_pInFile.close();
+#endif
+
         #ifdef DEBUG
         Serial.println("Memory Allocation Failure");
         #endif
@@ -134,7 +286,12 @@ int JPEGDecoder::decode_mcu(void){
     {
         is_available = 0 ;
 
+#ifdef SMING_VERSION
+        fileClose(g_pInFile);
+#else
         g_pInFile.close();
+#endif
+
 
         if (status != PJPG_NO_MORE_BLOCKS)
         {
@@ -161,7 +318,12 @@ int JPEGDecoder::read(void)
     if (mcu_y >= image_info.m_MCUSPerCol)
     {
         delete pImage;
+#ifdef SMING_VERSION
+        fileClose(g_pInFile);
+#else
         g_pInFile.close();
+#endif
+
         return 0;
     }
 
